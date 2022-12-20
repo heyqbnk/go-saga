@@ -1,4 +1,4 @@
-module github.com/heyqbnk/transaction
+module github.com/heyqbnk/transaction-go
 
 go 1.19
 
