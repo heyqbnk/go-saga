@@ -1,58 +1,43 @@
-package transaction
+package gotransaction
 
 import (
-	"github.com/pkg/errors"
+	"context"
 )
 
-type cachedStep[T interface{}] struct {
-	step   Step[T]
-	result T
-}
-
-// Runner is passed to transaction to work with transaction state.
 type Runner struct {
-	// List of completed steps.
-	cachedSteps []cachedStep[any]
+	resultStack []func(ctx context.Context) error
 }
 
 func newRunner() *Runner {
 	return &Runner{}
 }
 
-// Run runs specified step and caches it for future rollback.
-func (r *Runner) Run(step Step[any]) (res any, err error) {
-	if step.Run == nil {
-		return nil, errors.New("\"Run\" function should be specified")
+func (r *Runner) Rollback(ctx context.Context) error {
+	for i := len(r.resultStack) - 1; i >= 0; i-- {
+		if err := r.resultStack[i](ctx); err != nil {
+			return err
+		}
 	}
-	err = retry(func() error {
-		res, err = step.Run()
-		return err
-	}, step.Retries+1)
+
+	return nil
+}
+
+func (r *Runner) runStep(ctx context.Context, step Step[any]) (any, error) {
+	res, err := retry[any](func() (any, error) {
+		return step.Run(ctx)
+	}, step.ShouldRetryRun)
 	if err != nil {
 		return nil, err
 	}
 
-	// Cache step result.
-	r.cacheStep(cachedStep[any]{step: step, result: res})
+	// Cache result.
+	if step.Rollback != nil {
+		r.resultStack = append(r.resultStack, func(ctx context.Context) error {
+			return retryWithoutResult(func() error {
+				return step.Rollback(ctx, res)
+			}, step.ShouldRetryRollback)
+		})
+	}
 
 	return res, err
-}
-
-// Rollback rollbacks transaction.
-func (r *Runner) Rollback() error {
-	for i := len(r.cachedSteps) - 1; i >= 0; i-- {
-		rollback := r.cachedSteps[i].step.Rollback
-		if rollback == nil {
-			continue
-		}
-		if err := rollback(r.cachedSteps[i].result); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// Caches step.
-func (r *Runner) cacheStep(step cachedStep[any]) {
-	r.cachedSteps = append(r.cachedSteps, step)
 }
