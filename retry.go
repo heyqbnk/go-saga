@@ -1,38 +1,39 @@
-package gotransaction
+package saga
 
 // ShouldRetryFunc function which determines if some function should be called
-// again. Accepts last occurred error and current function calls count.
-type ShouldRetryFunc = func(err error, callsCount int) bool
+// again. Accepts last occurred error and already performed retries count.
+type ShouldRetryFunc = func(err error, retriesCount int) bool
 
 // ShouldRetriesCount return function which retries function execution not more
-// than count times.
+// than count **additional** times.
+//
+// For example, when you specify 3 here, this will lead to maximum 4 function
+// calls - 1 guaranteed + 3 additional.
 func ShouldRetriesCount(count int) ShouldRetryFunc {
 	return func(_ error, callsCount int) bool {
-		return callsCount <= count
+		return callsCount < count
 	}
 }
 
-// Retries "f" until "shouldRetry" returns true. In case, "shouldRetry" is
-// nil, retry calls "f" function only once.
-func retry[T interface{}](f func() (T, error), shouldRetry ShouldRetryFunc) (res T, err error) {
-	doRetry := true
-	callsCount := 0
+// Retries specified function until retrier function is returning true.
+// In case, retrier is nil, specified function will only be called once.
+func retry[T any](f func() (T, error), shouldRetry ShouldRetryFunc) (res T, err error) {
+	retriesCount := 0
 
-	for doRetry {
-		callsCount++
+	for {
+		// Execute wrapped function.
 		res, err = f()
-		if err != nil {
-			if shouldRetry == nil {
-				doRetry = false
-			} else {
-				doRetry = shouldRetry(err, callsCount)
-			}
-			continue
+		if err == nil {
+			return res, nil
 		}
-		doRetry = false
-	}
 
-	return res, err
+		if shouldRetry == nil || !shouldRetry(err, retriesCount) {
+			return res, err
+		}
+
+		// Otherwise, increase retries count and try again.
+		retriesCount++
+	}
 }
 
 // See retry.

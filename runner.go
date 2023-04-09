@@ -1,4 +1,4 @@
-package gotransaction
+package saga
 
 import (
 	"context"
@@ -13,10 +13,11 @@ func newRunner() *Runner {
 	return &Runner{}
 }
 
+// Rollback rolls back previously completed steps in reverse order.
 func (r *Runner) Rollback(ctx context.Context) error {
 	for i := len(r.resultStack) - 1; i >= 0; i-- {
 		if err := r.resultStack[i](ctx); err != nil {
-			return err
+			return fmt.Errorf("rollback step with index %d step: %w", i, err)
 		}
 	}
 
@@ -31,7 +32,8 @@ func (r *Runner) runStep(ctx context.Context, step Step[any]) (any, error) {
 		return nil, fmt.Errorf("run step via runner: %w", err)
 	}
 
-	// Cache result.
+	// In case, step has rollback action, we should save it in runner callstack
+	// for future usage.
 	if step.Rollback != nil {
 		r.resultStack = append(r.resultStack, func(ctx context.Context) error {
 			return retryWithoutResult(func() error {

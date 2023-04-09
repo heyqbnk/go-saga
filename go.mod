@@ -1,5 +1,3 @@
-module github.com/heyqbnk/transaction-go
+module github.com/heyqbnk/go-saga
 
 go 1.19
-
-require github.com/pkg/errors v0.9.1
