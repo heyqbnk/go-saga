@@ -10,7 +10,7 @@ import (
 
 var (
 	// Default retrier function.
-	_shouldRetry = gosaga.ShouldRetriesCount(3)
+	_shouldRetry = gosaga.ShouldRetryTimes(3)
 )
 
 // Implements gosaga.Saga interface.

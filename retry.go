@@ -4,12 +4,12 @@ package saga
 // again. Accepts last occurred error and already performed retries count.
 type ShouldRetryFunc = func(err error, retriesCount int) bool
 
-// ShouldRetriesCount return function which retries function execution not more
+// ShouldRetryTimes return function which retries function execution not more
 // than count **additional** times.
 //
 // For example, when you specify 3 here, this will lead to maximum 4 function
 // calls - 1 guaranteed + 3 additional.
-func ShouldRetriesCount(count int) ShouldRetryFunc {
+func ShouldRetryTimes(count int) ShouldRetryFunc {
 	return func(_ error, callsCount int) bool {
 		return callsCount < count
 	}
