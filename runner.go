@@ -2,6 +2,7 @@ package gotransaction
 
 import (
 	"context"
+	"fmt"
 )
 
 type Runner struct {
@@ -27,7 +28,7 @@ func (r *Runner) runStep(ctx context.Context, step Step[any]) (any, error) {
 		return step.Run(ctx)
 	}, step.ShouldRetryRun)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("run step via runner: %w", err)
 	}
 
 	// Cache result.

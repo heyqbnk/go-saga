@@ -11,11 +11,11 @@ type Step[T interface{}] struct {
 
 	// ShouldRetryRun is a function which should return true in case,
 	// Run step should be retried.
-	ShouldRetryRun func(err error, callsCount int) bool
+	ShouldRetryRun ShouldRetryFunc
 
 	// ShouldRetryRollback is a function which should return true in case,
 	// Rollback step should be retried.
-	ShouldRetryRollback func(err error, callsCount int) bool
+	ShouldRetryRollback ShouldRetryFunc
 }
 
 func RunStep[T interface{}](ctx context.Context, runner *Runner, step Step[T]) (result T, err error) {

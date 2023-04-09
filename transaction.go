@@ -2,10 +2,11 @@ package gotransaction
 
 import (
 	"context"
+	"fmt"
 )
 
 type Transaction interface {
-	Run(ctx context.Context, runner *Runner) error
+	Run(execCtx, rollbackCtx context.Context, runner *Runner) (execErr, rollbackErr error)
 	Lock(ctx context.Context) error
 	Unlock(ctx context.Context) error
 	ShouldRetryUnlock(err error, callsCount int) bool
@@ -15,28 +16,27 @@ type Transaction interface {
 // 1. Lock transaction.
 // 2. Run all steps.
 // 3. Unlock transaction.
-func RunTransaction(ctx context.Context, trx Transaction) (err error) {
-	if err = trx.Lock(ctx); err != nil {
-		return err
+func RunTransaction(
+	execCtx, rollbackCtx context.Context,
+	trx Transaction,
+) (execErr, rollbackErr, unlockErr error) {
+	if execErr = trx.Lock(execCtx); execErr != nil {
+		return fmt.Errorf("lock transaction: %w", execErr), nil, nil
 	}
 
 	defer func() {
-		unlockErr := retryWithoutResult(func() error {
-			return trx.Unlock(ctx)
+		unlockErr = retryWithoutResult(func() error {
+			return trx.Unlock(execCtx)
 		}, trx.ShouldRetryUnlock)
-
-		if unlockErr != nil {
-			if err == nil {
-				err = unlockErr
-			} else {
-				// FIXME: What to do with such type of error.
-			}
-		}
 	}()
 
-	if err = trx.Run(ctx, newRunner()); err != nil {
-		return err
+	execErr, rollbackErr = trx.Run(execCtx, rollbackCtx, newRunner())
+	if execErr != nil {
+		execErr = fmt.Errorf("run transaction: %w", execErr)
+	}
+	if rollbackErr != nil {
+		rollbackErr = fmt.Errorf("rollback transaction: %w", rollbackErr)
 	}
 
-	return nil
+	return execErr, rollbackErr, nil
 }
